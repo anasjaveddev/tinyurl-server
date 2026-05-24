@@ -1,15 +1,18 @@
 import mongoose from "mongoose";
 
-const connectMongoDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000,
-    });
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-  } catch (error) {
-    console.log(`❌ MongoDB Connection Error: ${error.message}`);
-    process.exit(1);
-  }
+export const ConnectMongoDb = async () => {
+    try {
+        const mongoURI = process.env.MONGODB_URI || "mongodb://localhost:27017/tinyurl";
+        
+        await mongoose.connect(mongoURI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true
+        });
+        
+        console.log("✅ MongoDB Connected Successfully");
+        console.log(`📦 Database: ${mongoose.connection.name}`);
+    } catch (err) {
+        console.error("❌ MongoDB Connection Error:", err.message);
+        // Don't exit - let the app try to reconnect
+    }
 };
-
-export default connectMongoDB;

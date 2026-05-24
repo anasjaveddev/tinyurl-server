@@ -1,26 +1,34 @@
 import mongoose from "mongoose";
 
 const urlSchema = new mongoose.Schema({
-  longURL: {
-    type: String,
-    required: [true, "longURL is required"],
-    trim: true,
-  },
-  shortId: {
-    type: String,
-    required: [true, "shortId is required"],
-    unique: true,
-    trim: true,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
+    longURL: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    shortCode: {
+        type: String,
+        required: true,
+        unique: true,
+        trim: true,
+        index: true
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    },
+    clicks: {
+        type: Number,
+        default: 0
+    },
+    expiresAt: {
+        type: Date,
+        default: null
+    }
 });
 
-// Index for faster lookups on shortId
-urlSchema.index({ shortId: 1 });
+// Index for faster lookups
+urlSchema.index({ shortCode: 1 });
+urlSchema.index({ longURL: 1 });
 
-const URL = mongoose.model("URL", urlSchema);
-
-export default URL;
+export const URLs = mongoose.model("URL", urlSchema);

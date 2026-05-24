@@ -1,76 +1,115 @@
-import URL from "../Models/url.js";
-import { generateShortId } from "../Utils/Keys.js";
-import { setCache } from "../Utils/redis.js";
+import { URLs } from "../Models/url.js";
+import { generateShortCode, isValidUrl } from "../Utils/Keys.js";
 
-const SaveURL = async (req, res) => {
-  try {
-    const { longURL } = req.body;
+// Save new URL (TinyURL jaisa)
+export const SaveURL = async (req, res) => {
+    const { longURL, customCode } = req.body;
 
-    // Validate longURL
-    if (!longURL) {
-      console.log("❌ SaveURL Error: longURL is missing in request body");
-      return res.status(400).json({
-        success: false,
-        message: "longURL is required in request body",
-      });
+    // Validate URL
+    if (!longURL || !isValidUrl(longURL)) {
+        return res.status(400).json({ 
+            ok: false, 
+            error: "Invalid URL. Please include http:// or https://" 
+        });
     }
 
-    // Basic URL validation
     try {
-      new URL(longURL);
-    } catch (_) {
-      console.log(`❌ SaveURL Error: Invalid URL format - ${longURL}`);
-      return res.status(400).json({
-        success: false,
-        message: "Invalid URL format. Please provide a valid URL.",
-      });
+        let shortCode = customCode;
+        let isCustom = false;
+
+        // Agar custom code diya hai toh check karo
+        if (customCode && customCode.trim()) {
+            shortCode = customCode.trim();
+            isCustom = true;
+            
+            // Check agar custom code already exists
+            const existing = await URLs.findOne({ shortCode });
+            if (existing) {
+                return res.status(400).json({
+                    ok: false,
+                    error: "Custom code already taken. Please choose another."
+                });
+            }
+            
+            // Custom code length limit (TinyURL: 5-20 chars)
+            if (shortCode.length < 3 || shortCode.length > 20) {
+                return res.status(400).json({
+                    ok: false,
+                    error: "Custom code must be 3-20 characters"
+                });
+            }
+        } else {
+            // Auto-generate unique code
+            let isUnique = false;
+            while (!isUnique) {
+                shortCode = generateShortCode(6);
+                const existing = await URLs.findOne({ shortCode });
+                if (!existing) isUnique = true;
+            }
+        }
+
+        // Check agar same longURL pehle se hai toh wahi code return karo (TinyURL feature)
+        const existingUrl = await URLs.findOne({ longURL });
+        if (existingUrl && !isCustom) {
+            const baseURL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 5050}`;
+            return res.status(200).json({
+                ok: true,
+                shortURL: `${baseURL}/${existingUrl.shortCode}`,
+                shortCode: existingUrl.shortCode,
+                message: "URL already shortened"
+            });
+        }
+
+        // Save to database
+        const newURL = new URLs({
+            longURL,
+            shortCode,
+            createdAt: new Date(),
+            clicks: 0
+        });
+
+        await newURL.save();
+
+        const baseURL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 5050}`;
+        const shortURL = `${baseURL}/${shortCode}`;
+
+        res.status(200).json({
+            ok: true,
+            shortURL: shortURL,
+            shortCode: shortCode,
+            longURL: longURL
+        });
+
+    } catch (err) {
+        console.error("SaveURL Error:", err);
+        res.status(500).json({ 
+            ok: false, 
+            error: "Internal server error" 
+        });
     }
-
-    // Generate unique shortId (retry if collision)
-    let shortId;
-    let isUnique = false;
-    let attempts = 0;
-
-    while (!isUnique && attempts < 5) {
-      shortId = generateShortId(7);
-      const existing = await URL.findOne({ shortId });
-      if (!existing) isUnique = true;
-      attempts++;
-    }
-
-    if (!isUnique) {
-      console.log("❌ SaveURL Error: Could not generate unique shortId after 5 attempts");
-      return res.status(500).json({
-        success: false,
-        message: "Server error: Could not generate unique short ID",
-      });
-    }
-
-    // Save to MongoDB
-    const newURL = await URL.create({ longURL, shortId });
-    console.log(`✅ URL Saved - shortId: ${shortId} → ${longURL}`);
-
-    // Cache in Redis (fire and forget)
-    const BASE_URL = process.env.BASE_URL || "http://localhost:5050";
-    await setCache(shortId, { longURL, shortId });
-
-    const shortURL = `${BASE_URL}/${shortId}`;
-
-    return res.status(201).json({
-      success: true,
-      shortId: newURL.shortId,
-      shortURL,
-      longURL: newURL.longURL,
-      createdAt: newURL.createdAt,
-    });
-  } catch (error) {
-    console.log(`❌ SaveURL Error: ${error.message}`);
-    return res.status(500).json({
-      success: false,
-      message: "Internal Server Error",
-      error: error.message,
-    });
-  }
 };
 
-export default SaveURL;
+// Check duplicate URL (TinyURL feature)
+export const checkDuplicate = async (req, res) => {
+    const { longURL } = req.body;
+
+    if (!longURL) {
+        return res.status(400).json({ ok: false, error: "URL required" });
+    }
+
+    try {
+        const existing = await URLs.findOne({ longURL });
+        if (existing) {
+            const baseURL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 5050}`;
+            return res.status(200).json({
+                ok: true,
+                exists: true,
+                shortURL: `${baseURL}/${existing.shortCode}`,
+                shortCode: existing.shortCode
+            });
+        }
+        res.status(200).json({ ok: true, exists: false });
+    } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+    }
+};

@@ -1,60 +1,35 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import connectMongoDB from "./Utils/mongodb.js";
-import { connectRedis } from "./Utils/redis.js";
+import { ConnectMongoDb } from "./Utils/mongodb.js";
 import URLRoute from "./Routes/urls.js";
 
-// Load environment variables
 dotenv.config();
 
-const app = express();
-const PORT = process.env.PORT || 5050;
+ConnectMongoDb();
 
-// ── Middleware ──────────────────────────────────────────
+const app = express();
+
+// CORS - sab allow (TinyURL ki tarah)
 app.use(cors({
-  origin: "*",
-  credentials: true,
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type"]
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ── Health Check ────────────────────────────────────────
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    status: "OK",
-    message: "TinyURL Server is running",
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// ── Routes ──────────────────────────────────────────────
+// Routes
 app.use("/", URLRoute);
 
-// ── 404 Handler ─────────────────────────────────────────
-app.use((req, res) => {
-  res.status(404).json({ success: false, message: "Route not found" });
+// TinyURL ki tarah root pe bhi kuch
+app.get("/", (req, res) => {
+    res.json({ message: "URL Shortener API - Like TinyURL" });
 });
 
-// ── Global Error Handler ────────────────────────────────
-app.use((err, req, res, next) => {
-  console.log(`❌ Unhandled Error: ${err.message}`);
-  res.status(500).json({ success: false, message: "Internal Server Error" });
+const PORT = process.env.PORT || 5050;
+app.listen(PORT, () => {
+    console.log(`✅ Server running on port ${PORT}`);
+    console.log(`✅ API URL: http://localhost:${PORT}`);
 });
-
-// ── Start Server ─────────────────────────────────────────
-const startServer = async () => {
-  // Connect to MongoDB (required)
-  await connectMongoDB();
-
-  // Connect to Redis (optional - graceful fallback)
-  await connectRedis();
-
-  app.listen(PORT, () => {
-    console.log(`🚀 I am Working!`);
-    console.log(`📡 Server running on port ${PORT}`);
-    console.log(`🔗 Base URL: ${process.env.BASE_URL || `http://localhost:${PORT}`}`);
-  });
-};
-
-startServer();

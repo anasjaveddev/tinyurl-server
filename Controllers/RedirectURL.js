@@ -1,50 +1,45 @@
-import URL from "../Models/url.js";
-import { getCache, setCache } from "../Utils/redis.js";
+import { URLs } from "../Models/url.js";
 
-const RedirectURL = async (req, res) => {
-  try {
-    const { shortId } = req.params;
+export const RedirectURL = async (req, res) => {
+    const { shortCode } = req.params;
 
-    if (!shortId) {
-      console.log("❌ RedirectURL Error: shortId is missing");
-      return res.status(400).json({
-        success: false,
-        message: "shortId is required",
-      });
+    if (!shortCode) {
+        return res.status(400).json({ error: "Invalid short URL" });
     }
 
-    // 1️⃣ Check Redis cache first
-    const cached = await getCache(shortId);
-    if (cached) {
-      console.log(`⚡ Redis Cache Hit - shortId: ${shortId} → ${cached.longURL}`);
-      return res.redirect(cached.longURL);
+    try {
+        // Find by shortCode
+        const urlEntry = await URLs.findOne({ shortCode });
+
+        if (!urlEntry) {
+            return res.status(404).json({ 
+                error: "Short URL not found",
+                message: "This link doesn't exist or may have been deleted"
+            });
+        }
+
+        // TinyURL ki tarah 301 redirect (permanent)
+        // ya 302 (temporary) - dono sahi hai
+        // Increment click count (analytics ke liye)
+        await URLs.updateOne(
+            { shortCode }, 
+            { $inc: { clicks: 1 } }
+        );
+
+        // Make sure URL has protocol
+        let redirectUrl = urlEntry.longURL;
+        if (!redirectUrl.startsWith('http://') && !redirectUrl.startsWith('https://')) {
+            redirectUrl = 'https://' + redirectUrl;
+        }
+
+        // 301 Moved Permanently (TinyURL uses this)
+        return res.redirect(301, redirectUrl);
+
+    } catch (err) {
+        console.error("RedirectURL Error:", err);
+        return res.status(500).json({ 
+            error: "Internal server error",
+            message: "Something went wrong. Please try again."
+        });
     }
-
-    // 2️⃣ Fallback: query MongoDB
-    const urlDoc = await URL.findOne({ shortId });
-
-    if (!urlDoc) {
-      console.log(`❌ RedirectURL: shortId not found - ${shortId}`);
-      return res.status(404).json({
-        success: false,
-        message: `Short URL '${shortId}' not found`,
-      });
-    }
-
-    console.log(`✅ MongoDB Hit - shortId: ${shortId} → ${urlDoc.longURL}`);
-
-    // Store in Redis for next time
-    await setCache(shortId, { longURL: urlDoc.longURL, shortId });
-
-    return res.redirect(urlDoc.longURL);
-  } catch (error) {
-    console.log(`❌ RedirectURL Error: ${error.message}`);
-    return res.status(500).json({
-      success: false,
-      message: "Internal Server Error",
-      error: error.message,
-    });
-  }
 };
-
-export default RedirectURL;
