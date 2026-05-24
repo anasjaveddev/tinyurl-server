@@ -3,27 +3,31 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
-
-const redisClient = createClient({
-  url: redisUrl
-});
-
-redisClient.on("error", (err) => console.error("Redis Client Error", err));
+let redisClient = null;
 
 export const connectRedis = async () => {
   try {
-    if (!redisClient.isOpen) {
-      await redisClient.connect();
-    }
+    const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+    
+    redisClient = createClient({
+      url: redisUrl
+    });
+    
+    redisClient.on("error", (err) => {
+      console.log("⚠️ Redis not available, continuing without Redis");
+    });
+    
+    await redisClient.connect();
     console.log("✅ Connected to Redis");
   } catch (err) {
-    console.log("⚠️ Redis connection failed, continuing without Redis:", err.message);
+    console.log("⚠️ Redis disabled - continuing without Redis");
+    redisClient = null;
   }
 };
 
 export const setCache = async (key, value, expireSeconds = 3600) => {
   try {
+    if (!redisClient) return null;
     await redisClient.set(key, JSON.stringify(value), {
       EX: expireSeconds,
     });
@@ -34,6 +38,7 @@ export const setCache = async (key, value, expireSeconds = 3600) => {
 
 export const getCache = async (key) => {
   try {
+    if (!redisClient) return null;
     const data = await redisClient.get(key);
     return data ? JSON.parse(data) : null;
   } catch (err) {
