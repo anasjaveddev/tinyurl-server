@@ -1,12 +1,15 @@
 import mongoose from "mongoose";
 
-export const ConnectMongoDb = async () => {
+const connectMongoDB = async () => {
   try {
-    const mongoURI = process.env.MONGODB_URI || "mongodb://localhost:27017/tinyurl";
-    await mongoose.connect(mongoURI);
-    console.log("✅ DB Connected");
-  } catch (err) {
-    console.log("❌ DB Connection Error:", err.message);
-    console.log("Full error:", err);
+    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000,
+    });
+    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+  } catch (error) {
+    console.log(`❌ MongoDB Connection Error: ${error.message}`);
+    process.exit(1);
   }
 };
+
+export default connectMongoDB;

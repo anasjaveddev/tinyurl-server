@@ -1,8 +1,11 @@
-export const generateShortId = (length = 7) => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
+const CHARACTERS =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+export function generateShortId(length = 7) {
+  let shortId = "";
   for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+    const randomIndex = Math.floor(Math.random() * CHARACTERS.length);
+    shortId += CHARACTERS[randomIndex];
   }
-  return result;
-};
+  return shortId;
+}

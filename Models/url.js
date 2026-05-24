@@ -3,12 +3,12 @@ import mongoose from "mongoose";
 const urlSchema = new mongoose.Schema({
   longURL: {
     type: String,
-    required: true,
+    required: [true, "longURL is required"],
     trim: true,
   },
   shortId: {
     type: String,
-    required: true,
+    required: [true, "shortId is required"],
     unique: true,
     trim: true,
   },
@@ -18,4 +18,9 @@ const urlSchema = new mongoose.Schema({
   },
 });
 
-export const URLs = mongoose.model("URL", urlSchema);
+// Index for faster lookups on shortId
+urlSchema.index({ shortId: 1 });
+
+const URL = mongoose.model("URL", urlSchema);
+
+export default URL;

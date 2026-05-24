@@ -1,45 +1,70 @@
 import { createClient } from "redis";
-import dotenv from "dotenv";
 
-dotenv.config();
-
-const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
-
-const redisClient = createClient({
-  url: redisUrl
-});
-
-redisClient.on("error", (err) => console.error("Redis Client Error", err));
+let redisClient = null;
+let isRedisConnected = false;
 
 export const connectRedis = async () => {
   try {
-    if (!redisClient.isOpen) {
-      await redisClient.connect();
-    }
-    console.log("✅ Connected to Redis");
-  } catch (err) {
-    console.log("⚠️ Redis connection failed, continuing without Redis:", err.message);
+    redisClient = createClient({
+      url: process.env.REDIS_URL || "redis://localhost:6379",
+      socket: {
+        connectTimeout: 5000,
+        reconnectStrategy: (retries) => {
+          if (retries > 3) {
+            console.log("⚠️  Redis max retries reached. Running without cache.");
+            return false;
+          }
+          return Math.min(retries * 500, 2000);
+        },
+      },
+    });
+
+    redisClient.on("error", (err) => {
+      if (isRedisConnected) {
+        console.log(`⚠️  Redis Error: ${err.message}`);
+      }
+      isRedisConnected = false;
+    });
+
+    redisClient.on("connect", () => {
+      isRedisConnected = true;
+      console.log("✅ Redis Connected Successfully");
+    });
+
+    redisClient.on("end", () => {
+      isRedisConnected = false;
+      console.log("⚠️  Redis connection closed");
+    });
+
+    await redisClient.connect();
+  } catch (error) {
+    console.log(`⚠️  Redis Connection Failed: ${error.message}`);
+    console.log("📌 Backend will run without Redis cache (MongoDB fallback)");
+    isRedisConnected = false;
+    redisClient = null;
   }
 };
 
-export const setCache = async (key, value, expireSeconds = 3600) => {
+export const setCache = async (key, value, ttlSeconds = 86400) => {
+  if (!redisClient || !isRedisConnected) return false;
   try {
-    await redisClient.set(key, JSON.stringify(value), {
-      EX: expireSeconds,
-    });
-  } catch (err) {
-    console.log("Cache set error:", err);
+    await redisClient.setEx(key, ttlSeconds, JSON.stringify(value));
+    return true;
+  } catch (error) {
+    console.log(`⚠️  Redis setCache Error: ${error.message}`);
+    return false;
   }
 };
 
 export const getCache = async (key) => {
+  if (!redisClient || !isRedisConnected) return null;
   try {
     const data = await redisClient.get(key);
     return data ? JSON.parse(data) : null;
-  } catch (err) {
-    console.log("Cache get error:", err);
+  } catch (error) {
+    console.log(`⚠️  Redis getCache Error: ${error.message}`);
     return null;
   }
 };
 
-export default redisClient;
+export const isRedisReady = () => isRedisConnected;

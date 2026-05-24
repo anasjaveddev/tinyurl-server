@@ -1,120 +1,145 @@
-# tinyurl-server
+# 🔗 TinyURL Server
 
-A REST API for a URL shortener built with **Node.js, Express, and MongoDB**. Accepts a long URL, stores it in the database, and returns a unique shortened URL. Works together with the [tinyurl-client](https://github.com/MohidWebDev/tinyurl-client.git) frontend.
+A production-ready URL shortener backend built with **Node.js**, **Express**, **MongoDB**, and **Redis**.
 
-## 🔗 Related Repository
+---
 
-This is the **backend** of a two-part project.
-👉 Frontend repo: [tinyurl-client](https://github.com/MohidWebDev/tinyurl-client.git)
-
-## 🛠️ Tech Stack
-
-- Node.js
-- Express
-- MongoDB + Mongoose
-- dotenv
-- cors
-
-## 📁 Folder Structure
+## 📁 Project Structure
 
 ```
 tinyurl-server/
 ├── Controllers/
-│   ├── SaveURL.js
-│   └── RedirectURL.js
+│   ├── SaveURL.js       # POST /save — Create short URL
+│   └── RedirectURL.js   # GET /:shortId — Redirect to original URL
 ├── Models/
-│   └── url.js
+│   └── url.js           # Mongoose URL schema
 ├── Routes/
-│   └── urls.js
+│   └── urls.js          # Express router
 ├── Utils/
-│   ├── Keys.js
-│   └── mongodb.js
-├── .env
-├── index.mjs
-└── package.json
+│   ├── mongodb.js       # MongoDB connection
+│   ├── redis.js         # Redis client with graceful fallback
+│   └── Keys.js          # Short ID generator
+├── .env                 # Environment variables
+├── index.mjs            # Entry point
+├── package.json
+└── README.md
 ```
 
-## ⚙️ Setup & Installation
+---
 
-1. Clone the repository
+## ⚙️ Setup
 
-   ```bash
-   git clone https://github.com/MohidWebDev/tinyurl-server.git
-   cd tinyurl-server
-   ```
+### 1. Install Dependencies
+```bash
+npm install
+```
 
-2. Install dependencies
+### 2. Configure Environment Variables
+Edit the `.env` file:
+```env
+MONGODB_URI=mongodb://localhost:27017/tinyurl
+REDIS_URL=redis://localhost:6379
+BASE_URL=http://localhost:5050
+PORT=5050
+```
 
-   ```bash
-   npm install
-   ```
+### 3. Run the Server
+```bash
+# Development (with auto-reload)
+npm run dev
 
-3. Create a `.env` file in the root directory
+# Production
+npm start
+```
 
-   ```env
-   MONGO_URI=your_mongodb_connection_string
-   ```
+---
 
-4. Start the server
-
-   ```bash
-   node index.mjs
-   ```
-
-5. Server runs on `http://localhost:5050`
-
-## 📡 API Endpoints
+## 🔌 API Endpoints
 
 ### `POST /save`
+Creates a short URL.
 
-Saves a long URL and returns a shortened one.
-
-**Request body:**
-
+**Request Body:**
 ```json
 {
-  "longURL": "https://www.example.com/some/very/long/url"
+  "longURL": "https://www.example.com/very/long/url"
 }
 ```
 
-**Success response:**
-
+**Response (201):**
 ```json
 {
-  "ok": true,
-  "shortURL": "http://localhost:5050/aB3xK9m"
-}
-```
-
-**Error response:**
-
-```json
-{
-  "ok": false
+  "success": true,
+  "shortId": "aB3xY7z",
+  "shortURL": "http://localhost:5050/aB3xY7z",
+  "longURL": "https://www.example.com/very/long/url",
+  "createdAt": "2024-01-01T00:00:00.000Z"
 }
 ```
 
 ---
 
 ### `GET /:shortId`
+Redirects to the original URL.
 
-Redirects to the original long URL associated with the given short ID.
+- ✅ Found → `302 Redirect` to `longURL`
+- ❌ Not Found → `404 JSON`
 
-**Example:**
-
+```json
+{
+  "success": false,
+  "message": "Short URL 'aB3xY7z' not found"
+}
 ```
-GET http://localhost:5050/aB3xK9m
-→ 302 Redirect to https://www.example.com/some/very/long/url
+
+---
+
+### `GET /health`
+Health check endpoint.
+
+```json
+{
+  "status": "OK",
+  "message": "TinyURL Server is running",
+  "timestamp": "2024-01-01T00:00:00.000Z"
+}
 ```
 
-## 🔄 How It Works
+---
 
-1. A `POST /save` request comes in with a `longURL` in the body
-2. A unique 7-character `shortId` is generated using `Keys.js`
-3. The `longURL` and `shortId` are saved to MongoDB
-4. The server responds with the full short URL
-5. When a `GET /:shortId` request comes in, MongoDB is queried for the matching record and the user is redirected
+## 🚀 Deploy on Railway
 
-## 📄 License
+1. Push your code to a GitHub repository
+2. Go to [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo**
+3. Add these environment variables in Railway dashboard:
+   ```
+   MONGODB_URI=<your MongoDB Atlas URI>
+   REDIS_URL=<your Redis URL or leave empty>
+   BASE_URL=https://<your-railway-domain>.railway.app
+   PORT=5050
+   ```
+4. Railway auto-detects `npm start` from `package.json`
 
-MIT
+> **Tip:** Use [MongoDB Atlas](https://cloud.mongodb.com) for the database.  
+> **Tip:** Redis is optional — the server runs fine without it.
+
+---
+
+## ⚡ Redis Caching
+
+- Redis caches short ID → long URL mappings for **24 hours** (86400s)
+- On cache **miss**, MongoDB is queried and result is cached
+- If Redis is **unavailable**, the server falls back to MongoDB automatically
+- No crash, no errors — fully graceful degradation
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer     | Technology         |
+|-----------|--------------------|
+| Runtime   | Node.js 18+        |
+| Framework | Express 4          |
+| Database  | MongoDB + Mongoose |
+| Cache     | Redis 4            |
+| Deploy    | Railway            |
