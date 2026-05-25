@@ -6,26 +6,33 @@ import URLRoute from "./Routes/urls.js";
 
 dotenv.config();
 
-// Connect to MongoDB
 ConnectMongoDb();
 
 const app = express();
 
-// ✅ HEALTH CHECK ROUTE (MUST BE FIRST - For Railway)
+// ========== HEALTH CHECK ROUTES (For Railway) ==========
 app.get("/", (req, res) => {
   res.status(200).json({
     status: "ok",
     message: "URL Shortener API is running",
     timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    endpoints: {
-      save: "POST /save",
-      redirect: "GET /:shortId"
-    }
+    uptime: process.uptime()
   });
 });
 
-// CORS
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
+});
+
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ 
+    status: "healthy", 
+    mongodb: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    uptime: process.uptime() 
+  });
+});
+
+// ========== CORS ==========
 app.use(cors({
   origin: ["http://localhost:5173", "https://*.vercel.app", "https://*.railway.app"],
   credentials: true,
@@ -35,10 +42,10 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
+// ========== Routes ==========
 app.use("/", URLRoute);
 
-// 404 handler for unknown routes
+// ========== 404 Handler ==========
 app.use((req, res) => {
   res.status(404).json({ 
     success: false, 
@@ -46,17 +53,8 @@ app.use((req, res) => {
   });
 });
 
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error("Global Error:", err);
-  res.status(500).json({ 
-    success: false, 
-    message: "Internal server error" 
-  });
-});
-
 const PORT = process.env.PORT || 5050;
 app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
-  console.log(`✅ Health check: http://localhost:${PORT}/`);
+  console.log(`✅ Health check: http://localhost:${PORT}/health`);
 });
