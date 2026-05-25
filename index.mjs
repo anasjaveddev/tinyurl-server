@@ -11,57 +11,52 @@ ConnectMongoDb();
 
 const app = express();
 
-// ========== HEALTH CHECK ROUTE (For Railway) ==========
+// ✅ HEALTH CHECK ROUTE (MUST BE FIRST - For Railway)
 app.get("/", (req, res) => {
   res.status(200).json({
     status: "ok",
     message: "URL Shortener API is running",
     timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
     endpoints: {
       save: "POST /save",
-      redirect: "GET /:shortId",
-      check: "POST /check",
-    },
+      redirect: "GET /:shortId"
+    }
   });
 });
 
-// ========== CORS Configuration ==========
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+// CORS
+app.use(cors({
+  origin: ["http://localhost:5173", "https://*.vercel.app", "https://*.railway.app"],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+}));
 
-// ========== Middleware ==========
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ========== Routes ==========
+// Routes
 app.use("/", URLRoute);
 
-// ========== 404 Handler for unknown routes ==========
+// 404 handler for unknown routes
 app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: `Route ${req.method} ${req.url} not found`,
+  res.status(404).json({ 
+    success: false, 
+    message: `Route ${req.method} ${req.url} not found` 
   });
 });
 
-// ========== Global Error Handler ==========
+// Global error handler
 app.use((err, req, res, next) => {
   console.error("Global Error:", err);
-  res.status(500).json({
-    success: false,
-    message: "Internal server error",
+  res.status(500).json({ 
+    success: false, 
+    message: "Internal server error" 
   });
 });
 
-// ========== Start Server ==========
 const PORT = process.env.PORT || 5050;
 app.listen(PORT, () => {
-  console.log(`✅ Server is running on port ${PORT}`);
+  console.log(`✅ Server running on http://localhost:${PORT}`);
   console.log(`✅ Health check: http://localhost:${PORT}/`);
-  console.log(`✅ Save URL: POST http://localhost:${PORT}/save`);
 });
